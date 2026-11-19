@@ -78,6 +78,43 @@ void execute_external(char **args)
 }
 
 
+//built in handler
+
+void handle_builtin(char **args, int *should_exit)
+{
+    if (strcmp(args[0], "cd") == 0)
+    {
+        const char *directory = args[1];
+
+        if (directory == NULL)
+        {
+            directory = getenv("HOME");
+        }
+
+        if (directory == NULL)
+        {
+            fprintf(stderr, "msh: HOME is not set\n");
+        }
+        else if (chdir(directory) == -1)
+        {
+            perror("cd");
+        }
+    }
+    else if (strcmp(args[0], "help") == 0)
+    {
+        printf("msh - Minimal Unix Shell\n");
+        printf("Built-in commands:\n");
+        printf("  cd [dir]  Change directory\n");
+        printf("  help      Display help\n");
+        printf("  exit      Exit the shell\n");
+    }
+    else if (strcmp(args[0], "exit") == 0)
+    {
+        *should_exit = 1;
+    }
+}
+
+
 
 int main(void)
 {
@@ -85,6 +122,7 @@ int main(void)
     size_t capacity = 0;
     ssize_t characters_read;
     int exit_status = EXIT_SUCCESS;
+    int should_exit = 0;
 
     while (1)
     {
@@ -122,9 +160,23 @@ if (args[0] == NULL)
     continue;
 }
 
-execute_external(args);
+if (strcmp(args[0], "cd") == 0 ||
+    strcmp(args[0], "help") == 0 ||
+    strcmp(args[0], "exit") == 0)
+{
+    handle_builtin(args, &should_exit);
+}
+else
+{
+    execute_external(args);
+}
 
 free(args);
+
+if (should_exit)
+{
+    break;
+}
     }
 
     free(line);
