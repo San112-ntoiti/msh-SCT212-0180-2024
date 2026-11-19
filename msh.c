@@ -6,6 +6,10 @@
 #include <sys/types.h>
 #include <string.h>
 
+#include <unistd.h> //the 3 will provide process creation execution waiting and error handling
+#include <sys/wait.h>
+#include <errno.h>
+
 
 #define MAX_ARGS 64
 
@@ -34,6 +38,45 @@ char **parse_line(char *line)
 
     return args;
 }
+
+//external command execution function
+void execute_external(char **args)
+{
+    pid_t pid = fork(); //creates a child process
+
+    if (pid == -1)
+    {
+        perror("fork");
+        return;
+    }
+
+    if (pid == 0)
+    {
+        /* Child process */
+        execvp(args[0], args);
+
+        /* Reached only if execvp fails */
+        perror(args[0]);
+        _exit(127);
+    }
+    else
+    {
+        /* Parent process */
+        int status;
+
+        while (waitpid(pid, &status, 0) == -1)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+
+            perror("waitpid");
+            break;
+        }
+    }
+}
+
 
 
 int main(void)
@@ -79,10 +122,7 @@ if (args[0] == NULL)
     continue;
 }
 
-for (int i = 0; args[i] != NULL; i++)
-{
-    printf("argv[%d] = %s\n", i, args[i]);
-}
+execute_external(args);
 
 free(args);
     }
