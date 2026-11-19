@@ -132,6 +132,18 @@ int handle_builtin(char **args, int *should_exit)
     return 1;
 }
 
+//background process reaper function
+void reap_background_processes(void)
+{
+    int status;
+    pid_t pid;
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+    {
+        printf("\n[msh] Background process %d finished\n", pid);
+    }
+}
+
 
 
 int main(void)
@@ -145,6 +157,7 @@ int main(void)
 
     while (1)
     {
+        reap_background_processes();
         printf("msh[%d]> ", last_status);
         fflush(stdout);
 
@@ -168,6 +181,21 @@ int main(void)
 
        char **args = parse_line(line);
 
+       int background = 0;
+
+int arg_count = 0;
+
+while (args[arg_count] != NULL)
+{
+    arg_count++;
+}
+
+if (arg_count > 0 && strcmp(args[arg_count - 1], "&") == 0)
+{
+    background = 1;
+    args[arg_count - 1] = NULL;
+}
+
 if (args == NULL)
 {
     continue;
@@ -187,7 +215,31 @@ if (strcmp(args[0], "cd") == 0 ||
 }
 else
 {
-    last_status = execute_external(args);
+    if (background)
+    {
+        pid_t pid = fork();
+
+        if (pid == -1)
+        {
+            perror("fork");
+            last_status = 1;
+        }
+        else if (pid == 0)
+        {
+            execvp(args[0], args);
+            perror(args[0]);
+            _exit(127);
+        }
+        else
+        {
+            printf("[msh] Started background process with PID %d\n", pid);
+            last_status = 0;
+        }
+    }
+    else
+    {
+        last_status = execute_external(args);
+    }
 }
 
 free(args);
