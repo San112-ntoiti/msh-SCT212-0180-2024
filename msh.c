@@ -40,47 +40,55 @@ char **parse_line(char *line)
 }
 
 //external command execution function
-void execute_external(char **args)
+int execute_external(char **args)
 {
-    pid_t pid = fork(); //creates a child process
+    pid_t pid = fork();
 
     if (pid == -1)
     {
         perror("fork");
-        return;
+        return 1;
     }
 
     if (pid == 0)
     {
-        /* Child process */
         execvp(args[0], args);
-
-        /* Reached only if execvp fails */
         perror(args[0]);
         _exit(127);
     }
-    else
+
+    int status;
+    pid_t result;
+
+    do
     {
-        /* Parent process */
-        int status;
-
-        while (waitpid(pid, &status, 0) == -1)
-        {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-
-            perror("waitpid");
-            break;
-        }
+        result = waitpid(pid, &status, 0);
     }
+    while (result == -1 && errno == EINTR);
+
+    if (result == -1)
+    {
+        perror("waitpid");
+        return 1;
+    }
+
+    if (WIFEXITED(status))
+    {
+        return WEXITSTATUS(status);
+    }
+
+    if (WIFSIGNALED(status))
+    {
+        return 128 + WTERMSIG(status);
+    }
+
+    return 1;
 }
 
 
 //built in handler
 
-void handle_builtin(char **args, int *should_exit)
+int handle_builtin(char **args, int *should_exit)
 {
     if (strcmp(args[0], "cd") == 0)
     {
@@ -94,11 +102,16 @@ void handle_builtin(char **args, int *should_exit)
         if (directory == NULL)
         {
             fprintf(stderr, "msh: HOME is not set\n");
+            return 1;
         }
-        else if (chdir(directory) == -1)
+
+        if (chdir(directory) == -1)
         {
             perror("cd");
+            return 1;
         }
+
+        return 0;
     }
     else if (strcmp(args[0], "help") == 0)
     {
@@ -107,11 +120,16 @@ void handle_builtin(char **args, int *should_exit)
         printf("  cd [dir]  Change directory\n");
         printf("  help      Display help\n");
         printf("  exit      Exit the shell\n");
+
+        return 0;
     }
     else if (strcmp(args[0], "exit") == 0)
     {
         *should_exit = 1;
+        return 0;
     }
+
+    return 1;
 }
 
 
@@ -123,10 +141,11 @@ int main(void)
     ssize_t characters_read;
     int exit_status = EXIT_SUCCESS;
     int should_exit = 0;
+    int last_status = 0;
 
     while (1)
     {
-        printf("msh[0]> ");
+        printf("msh[%d]> ", last_status);
         fflush(stdout);
 
         characters_read = getline(&line, &capacity, stdin);
@@ -164,11 +183,11 @@ if (strcmp(args[0], "cd") == 0 ||
     strcmp(args[0], "help") == 0 ||
     strcmp(args[0], "exit") == 0)
 {
-    handle_builtin(args, &should_exit);
+    last_status = handle_builtin(args, &should_exit);
 }
 else
 {
-    execute_external(args);
+    last_status = execute_external(args);
 }
 
 free(args);
