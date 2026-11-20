@@ -12,6 +12,8 @@
 
 #include <fcntl.h>
 
+#include <signal.h>
+
 
 #define MAX_ARGS 64
 
@@ -98,6 +100,18 @@ int execute_external(char **args)
 
     if (pid == 0)
 {
+    struct sigaction sa;
+sa.sa_handler = SIG_DFL;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = 0;
+
+if (sigaction(SIGINT, &sa, NULL) == -1)
+{
+    perror("sigaction");
+    _exit(1);
+}
+
+    signal(SIGINT, SIG_DFL);
     if (setup_output_redirection(args) == -1)
     {
         _exit(1);
@@ -206,6 +220,20 @@ int main(void)
     int should_exit = 0;
     int last_status = 0;
 
+    struct sigaction sa;
+sa.sa_handler = SIG_IGN;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = 0;
+
+if (sigaction(SIGINT, &sa, NULL) == -1)
+{
+    perror("sigaction");
+    free(line);
+    return EXIT_FAILURE;
+}
+
+    signal(SIGINT, SIG_IGN);
+
     while (1)
     {
         reap_background_processes();
@@ -277,6 +305,18 @@ else
         }
         else if (pid == 0)
 {
+    struct sigaction sa;
+sa.sa_handler = SIG_DFL;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = 0;
+
+if (sigaction(SIGINT, &sa, NULL) == -1)
+{
+    perror("sigaction");
+    _exit(1);
+}
+
+    signal(SIGINT, SIG_DFL);
     if (setup_output_redirection(args) == -1)
     {
         _exit(1);
