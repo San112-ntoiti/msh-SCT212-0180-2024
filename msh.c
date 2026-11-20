@@ -10,6 +10,8 @@
 #include <sys/wait.h>
 #include <errno.h>
 
+#include <fcntl.h>
+
 
 #define MAX_ARGS 64
 
@@ -39,6 +41,50 @@ char **parse_line(char *line)
     return args;
 }
 
+//redirection setup function
+int setup_output_redirection(char **args)
+{
+    int i = 0;
+
+    while (args[i] != NULL)
+    {
+        if (strcmp(args[i], ">") == 0)
+        {
+            if (args[i + 1] == NULL || args[i + 2] != NULL)
+            {
+                fprintf(stderr, "msh: invalid output redirection\n");
+                return -1;
+            }
+
+            int fd = open(args[i + 1],
+                          O_WRONLY | O_CREAT | O_TRUNC,
+                          0644);
+
+            if (fd == -1)
+            {
+                perror(args[i + 1]);
+                return -1;
+            }
+
+            if (dup2(fd, STDOUT_FILENO) == -1)
+            {
+                perror("dup2");
+                close(fd);
+                return -1;
+            }
+
+            close(fd);
+
+            args[i] = NULL;
+            return 0;
+        }
+
+        i++;
+    }
+
+    return 0;
+}
+
 //external command execution function
 int execute_external(char **args)
 {
@@ -51,11 +97,16 @@ int execute_external(char **args)
     }
 
     if (pid == 0)
+{
+    if (setup_output_redirection(args) == -1)
     {
-        execvp(args[0], args);
-        perror(args[0]);
-        _exit(127);
+        _exit(1);
     }
+
+    execvp(args[0], args);
+    perror(args[0]);
+    _exit(127);
+}
 
     int status;
     pid_t result;
@@ -225,11 +276,16 @@ else
             last_status = 1;
         }
         else if (pid == 0)
-        {
-            execvp(args[0], args);
-            perror(args[0]);
-            _exit(127);
-        }
+{
+    if (setup_output_redirection(args) == -1)
+    {
+        _exit(1);
+    }
+
+    execvp(args[0], args);
+    perror(args[0]);
+    _exit(127);
+}
         else
         {
             printf("[msh] Started background process with PID %d\n", pid);
